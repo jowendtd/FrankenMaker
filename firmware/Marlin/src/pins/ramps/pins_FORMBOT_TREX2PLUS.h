@@ -22,15 +22,14 @@
 #pragma once
 
 /**
- * Formbot T-Rex 2+ pin assignments
- * ATmega2560
+ * Formbot pin assignments
  */
 
 #define REQUIRE_MEGA2560
 #include "env_validate.h"
 
 #if HOTENDS > 2 || E_STEPPERS > 2
-  #error "Formbot supports up to 2 hotends / E steppers."
+  #error "Formbot supports up to 2 hotends / E-steppers. Comment out this line to continue."
 #endif
 
 #define BOARD_INFO_NAME      "Formbot"

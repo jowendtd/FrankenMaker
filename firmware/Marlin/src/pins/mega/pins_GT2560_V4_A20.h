@@ -23,7 +23,6 @@
 
 /**
  * Geeetech A20 GT2560 V4.x board pin assignments
- * ATmega2560
  */
 
 #define BOARD_INFO_NAME "GT2560 4.x"

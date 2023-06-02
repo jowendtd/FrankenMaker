@@ -23,16 +23,13 @@
 
 /**
  * RUMBA pin assignments
- * Schematic: https://green-candy.osdn.jp/external/MarlinFW/board_schematics/RAMPS/RUMBA/RRD-RUMBA_SCHEMATICS.png
- * Origin: https://reprap.org/wiki/File:RRD-RUMBA_SCHEMATICS.png
- * ATmega2560
  */
 
 #define REQUIRE_MEGA2560
 #include "env_validate.h"
 
 #if HOTENDS > 3 || E_STEPPERS > 3
-  #error "RUMBA supports up to 3 hotends / E steppers."
+  #error "RUMBA supports up to 3 hotends / E-steppers. Comment out this line to continue."
 #endif
 
 #ifndef BOARD_INFO_NAME
@@ -223,7 +220,7 @@
       #define RGB_LED_B_PIN                   40
     #endif
   #elif ENABLED(FYSETC_MINI_12864_2_1)
-    #define NEOPIXEL_PIN                      38
+    #define NEOPIXEL_PIN                      25
   #endif
 
 #else

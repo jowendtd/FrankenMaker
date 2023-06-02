@@ -23,8 +23,6 @@
 
 /**
  * Re-ARM with RAMPS v1.4 pin assignments
- * Schematic: https://green-candy.osdn.jp/external/MarlinFW/board_schematics/Re-ARM%20RAMPS%201.4/Re_ARM_Schematic.pdf
- * Origin: https://reprap.org/mediawiki/images/f/fa/Re_ARM_Schematic.pdf
  *
  * Applies to the following boards:
  *
@@ -230,7 +228,7 @@
 
 #define PS_ON_PIN                          P2_12  // (12)
 
-#if !defined(TEMP_0_CS_PIN) && !(HAS_Z_AXIS && Z_HOME_DIR)
+#if !defined(TEMP_0_CS_PIN) && DISABLED(USE_ZMAX_PLUG)
   #define TEMP_0_CS_PIN                    P1_28
 #endif
 
@@ -260,13 +258,11 @@
 //
 // Průša i3 MK2 Multiplexer Support
 //
-#if HAS_PRUSA_MMU1
-  #if SERIAL_PORT != 0 && SERIAL_PORT_2 != 0
-    #define E_MUX0_PIN                     P0_03  // ( 0) Z_CS_PIN
-    #define E_MUX1_PIN                     P0_02  // ( 1) E0_CS_PIN
-  #endif
-  #define E_MUX2_PIN                       P0_26  // (63) E1_CS_PIN
+#if SERIAL_PORT != 0 && SERIAL_PORT_2 != 0
+  #define E_MUX0_PIN                       P0_03  // ( 0) Z_CS_PIN
+  #define E_MUX1_PIN                       P0_02  // ( 1) E0_CS_PIN
 #endif
+#define E_MUX2_PIN                         P0_26  // (63) E1_CS_PIN
 
 /**
  * LCD / Controller
@@ -309,9 +305,7 @@
 
 #elif ENABLED(ZONESTAR_LCD)
 
-  #ifndef NO_CONTROLLER_CUSTOM_WIRING_WARNING
-    #error "CAUTION! ZONESTAR_LCD on REARM requires wiring modifications. NB. ADCs are not 5V tolerant. See 'pins_RAMPS_RE_ARM.h' for details. (Define NO_CONTROLLER_CUSTOM_WIRING_WARNING to suppress this warning.)"
-  #endif
+  #error "CAUTION! ZONESTAR_LCD on REARM requires wiring modifications. NB. ADCs are not 5V tolerant. Comment out this line to continue."
 
 #elif IS_TFTGLCD_PANEL
 
@@ -353,16 +347,16 @@
     //#define SHIFT_EN_PIN                 P1_22  // (41)  J5-4 & AUX-4
   #endif
 
-  #if EITHER(VIKI2, miniVIKI)
+  #if ANY(VIKI2, miniVIKI)
+    //#define LCD_SCREEN_ROT_180
+
     #define DOGLCD_CS                      P0_16  // (16)
     #define DOGLCD_A0                      P2_06  // (59) J3-8 & AUX-2
-    #define DOGLCD_SCK                     P0_15  // (52) (SCK)  J3-9 & AUX-3
-    #define DOGLCD_MOSI                    P0_18  // (51) (MOSI) J3-10 & AUX-3
+    #define DOGLCD_SCK                SD_SCK_PIN
+    #define DOGLCD_MOSI              SD_MOSI_PIN
 
     #define STAT_LED_BLUE_PIN              P0_26  // (63)  may change if cable changes
     #define STAT_LED_RED_PIN               P1_21  // ( 6)  may change if cable changes
-
-    //#define LCD_SCREEN_ROTATE              180  // 0, 90, 180, 270
 
   #else
 
@@ -412,7 +406,11 @@
   #endif
 
   #if ENABLED(MINIPANEL)
-    //#define LCD_SCREEN_ROTATE              180  // 0, 90, 180, 270
+    // GLCD features
+    // Uncomment screen orientation
+    //#define LCD_SCREEN_ROT_90
+    //#define LCD_SCREEN_ROT_180
+    //#define LCD_SCREEN_ROT_270
  #endif
 
 #endif // HAS_WIRED_LCD

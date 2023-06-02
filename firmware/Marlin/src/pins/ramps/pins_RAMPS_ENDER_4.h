@@ -21,10 +21,8 @@
  */
 #pragma once
 
-// ATmega2560
-
 #if HAS_MULTI_HOTEND || E_STEPPERS > 1
-  #error "Ender-4 only supports 1 hotend / E stepper."
+  #error "Ender-4 only supports one hotend / E-stepper. Comment out this line to continue."
 #endif
 
 #define BOARD_INFO_NAME "Ender-4"

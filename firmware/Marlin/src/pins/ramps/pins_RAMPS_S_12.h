@@ -24,7 +24,6 @@
 /**
  * Arduino Mega with RAMPS-S v1.2 by Sakul.cz pin assignments
  * Written by Michal Rábek <rabek33@gmail.com>
- * ATmega2560
  *
  * Applies to the following boards:
  *
@@ -234,16 +233,14 @@
 //
 // Průša i3 MK2 Multiplexer Support
 //
-#if HAS_PRUSA_MMU1
-  #ifndef E_MUX0_PIN
-    #define E_MUX0_PIN                        29  // E2_STEP_PIN
-  #endif
-  #ifndef E_MUX1_PIN
-    #define E_MUX1_PIN                        28  // E2_DIR_PIN
-  #endif
-  #ifndef E_MUX2_PIN
-    #define E_MUX2_PIN                        39  // E2_ENABLE_PIN
-  #endif
+#ifndef E_MUX0_PIN
+  #define E_MUX0_PIN                          29  // E2_STEP_PIN
+#endif
+#ifndef E_MUX1_PIN
+  #define E_MUX1_PIN                          28  // E2_DIR_PIN
+#endif
+#ifndef E_MUX2_PIN
+  #define E_MUX2_PIN                          39  // E2_ENABLE_PIN
 #endif
 
 //////////////////////////

@@ -23,7 +23,6 @@
 
 /**
  * Geeetech A20M board pin assignments
- * ATmega2560
  */
 
 #define LCD_PINS_RS                            5
