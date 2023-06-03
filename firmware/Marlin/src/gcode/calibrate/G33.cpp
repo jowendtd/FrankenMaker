@@ -27,7 +27,7 @@
 #include "../gcode.h"
 #include "../../module/delta.h"
 #include "../../module/motion.h"
-#include "../../module/stepper.h"
+#include "../../module/planner.h"
 #include "../../module/endstops.h"
 #include "../../lcd/marlinui.h"
 
@@ -63,22 +63,18 @@ enum CalEnum : char {                        // the 7 main calibration points - 
 #define LOOP_CAL_RAD(VAR) LOOP_CAL_PT(VAR, __A, _7P_STEP)
 #define LOOP_CAL_ACT(VAR, _4P, _OP) LOOP_CAL_PT(VAR, _OP ? _AB : __A, _4P ? _4P_STEP : _7P_STEP)
 
-#if HAS_MULTI_HOTEND
-  const uint8_t old_tool_index = active_extruder;
-#endif
-
 float lcd_probe_pt(const xy_pos_t &xy);
 
 void ac_home() {
   endstops.enable(true);
-  TERN_(HAS_DELTA_SENSORLESS_PROBING, probe.set_homing_current(true));
+  TERN_(SENSORLESS_HOMING, endstops.set_homing_current(true));
   home_delta();
-  TERN_(HAS_DELTA_SENSORLESS_PROBING, probe.set_homing_current(false));
+  TERN_(SENSORLESS_HOMING, endstops.set_homing_current(false));
   endstops.not_homing();
 }
 
 void ac_setup(const bool reset_bed) {
-  TERN_(HAS_MULTI_HOTEND, tool_change(0, true));
+  TERN_(HAS_BED_PROBE, probe.use_probing_tool());
 
   planner.synchronize();
   remember_feedrate_scaling_off();
@@ -92,14 +88,13 @@ void ac_cleanup(TERN_(HAS_MULTI_HOTEND, const uint8_t old_tool_index)) {
   TERN_(DELTA_HOME_TO_SAFE_ZONE, do_blocking_move_to_z(delta_clip_start_height));
   TERN_(HAS_BED_PROBE, probe.stow());
   restore_feedrate_and_scaling();
-  TERN_(HAS_MULTI_HOTEND, tool_change(old_tool_index, true));
+  TERN_(HAS_BED_PROBE, probe.use_probing_tool(false));
 }
 
 void print_signed_float(FSTR_P const prefix, const_float_t f) {
   SERIAL_ECHOPGM("  ");
   SERIAL_ECHOF(prefix, AS_CHAR(':'));
-  if (f >= 0) SERIAL_CHAR('+');
-  SERIAL_ECHO_F(f, 2);
+  serial_offset(f);
 }
 
 /**
@@ -175,7 +170,7 @@ static float std_dev_points(float z_pt[NPP + 1], const bool _0p_cal, const bool 
  */
 static float calibration_probe(const xy_pos_t &xy, const bool stow, const bool probe_at_offset) {
   #if HAS_BED_PROBE
-    return probe.probe_at_point(xy, stow ? PROBE_PT_STOW : PROBE_PT_RAISE, 0, probe_at_offset, false);
+    return probe.probe_at_point(xy, stow ? PROBE_PT_STOW : PROBE_PT_RAISE, 0, probe_at_offset, false, Z_PROBE_LOW_POINT, Z_TWEEN_SAFE_CLEARANCE, true);
   #else
     UNUSED(stow);
     return lcd_probe_pt(xy);
@@ -344,7 +339,7 @@ static float auto_tune_a(const float dcr) {
   abc_float_t delta_e = { 0.0f }, delta_t = { 0.0f };
 
   delta_t.reset();
-  LOOP_LINEAR_AXES(axis) {
+  LOOP_NUM_AXES(axis) {
     delta_t[axis] = diff;
     calc_kinematics_diff_probe_points(z_pt, dcr, delta_e, delta_r, delta_t);
     delta_t[axis] = 0;
@@ -391,6 +386,8 @@ static float auto_tune_a(const float dcr) {
  *   X   Don't activate stallguard on X.
  *   Y   Don't activate stallguard on Y.
  *   Z   Don't activate stallguard on Z.
+ *
+ *   S   Save offset_sensorless_adj
  */
 void GcodeSuite::G33() {
 
@@ -406,13 +403,14 @@ void GcodeSuite::G33() {
                   towers_set = !parser.seen_test('T');
 
   // The calibration radius is set to a calculated value
-  float dcr = probe_at_offset ? DELTA_PRINTABLE_RADIUS : DELTA_PRINTABLE_RADIUS - PROBING_MARGIN;
+  float dcr = probe_at_offset ? PRINTABLE_RADIUS : PRINTABLE_RADIUS - PROBING_MARGIN;
   #if HAS_PROBE_XY_OFFSET
     const float total_offset = HYPOT(probe.offset_xy.x, probe.offset_xy.y);
     dcr -= probe_at_offset ? _MAX(total_offset, PROBING_MARGIN) : total_offset;
   #endif
-  NOMORE(dcr, DELTA_PRINTABLE_RADIUS);
-  if (parser.seenval('R')) dcr -= _MAX(parser.value_float(),0);
+  NOMORE(dcr, PRINTABLE_RADIUS);
+  if (parser.seenval('R')) dcr -= _MAX(parser.value_float(), 0.0f);
+  TERN_(HAS_DELTA_SENSORLESS_PROBING, dcr *= sensorless_radius_factor);
 
   const float calibration_precision = parser.floatval('C', 0.0f);
   if (calibration_precision < 0) {
@@ -435,9 +433,8 @@ void GcodeSuite::G33() {
   const bool stow_after_each = parser.seen_test('E');
 
   #if HAS_DELTA_SENSORLESS_PROBING
-    probe.test_sensitivity.x = !parser.seen_test('X');
-    TERN_(HAS_Y_AXIS, probe.test_sensitivity.y = !parser.seen_test('Y'));
-    TERN_(HAS_Z_AXIS, probe.test_sensitivity.z = !parser.seen_test('Z'));
+    probe.test_sensitivity = { !parser.seen_test('X'), !parser.seen_test('Y'), !parser.seen_test('Z') };
+    const bool do_save_offset_adj = parser.seen_test('S');
   #endif
 
   const bool _0p_calibration      = probe_points == 0,
@@ -475,6 +472,24 @@ void GcodeSuite::G33() {
   ac_setup(!_0p_calibration && !_1p_calibration);
 
   if (!_0p_calibration) ac_home();
+
+  #if HAS_DELTA_SENSORLESS_PROBING
+    if (verbose_level > 0 && do_save_offset_adj) {
+      offset_sensorless_adj.reset();
+      auto caltower = [&](Probe::sense_bool_t s) {
+        float z_at_pt[NPP + 1];
+        LOOP_CAL_ALL(rad) z_at_pt[rad] = 0.0f;
+        probe.test_sensitivity = s;
+        if (probe_calibration_points(z_at_pt, 1, dcr, false, false, probe_at_offset))
+          probe.set_offset_sensorless_adj(z_at_pt[CEN]);
+      };
+      caltower({ true, false, false }); // A
+      caltower({ false, true, false }); // B
+      caltower({ false, false, true }); // C
+
+      probe.test_sensitivity = { true, true, true }; // reset to all
+    }
+  #endif
 
   do { // start iterations
 
@@ -537,7 +552,7 @@ void GcodeSuite::G33() {
 
         case 1:
           test_precision = 0.0f; // forced end
-          LOOP_LINEAR_AXES(axis) e_delta[axis] = +Z4(CEN);
+          LOOP_NUM_AXES(axis) e_delta[axis] = +Z4(CEN);
           break;
 
         case 2:
@@ -585,22 +600,31 @@ void GcodeSuite::G33() {
       // Normalize angles to least-squares
       if (_angle_results) {
         float a_sum = 0.0f;
-        LOOP_LINEAR_AXES(axis) a_sum += delta_tower_angle_trim[axis];
-        LOOP_LINEAR_AXES(axis) delta_tower_angle_trim[axis] -= a_sum / 3.0f;
+        LOOP_NUM_AXES(axis) a_sum += delta_tower_angle_trim[axis];
+        LOOP_NUM_AXES(axis) delta_tower_angle_trim[axis] -= a_sum / 3.0f;
       }
 
       // adjust delta_height and endstops by the max amount
       const float z_temp = _MAX(delta_endstop_adj.a, delta_endstop_adj.b, delta_endstop_adj.c);
       delta_height -= z_temp;
-      LOOP_LINEAR_AXES(axis) delta_endstop_adj[axis] -= z_temp;
+      LOOP_NUM_AXES(axis) delta_endstop_adj[axis] -= z_temp;
     }
     recalc_delta_settings();
     NOMORE(zero_std_dev_min, zero_std_dev);
 
     // print report
 
-    if (verbose_level == 3 || verbose_level == 0)
+    if (verbose_level == 3 || verbose_level == 0) {
       print_calibration_results(z_at_pt, _tower_results, _opposite_results);
+      #if HAS_DELTA_SENSORLESS_PROBING
+        if (verbose_level == 0 && probe_points == 1) {
+          if (do_save_offset_adj)
+            probe.set_offset_sensorless_adj(z_at_pt[CEN]);
+          else
+            probe.refresh_largest_sensorless_adj();
+        }
+      #endif
+    }
 
     if (verbose_level != 0) { // !dry run
       if ((zero_std_dev >= test_precision && iterations > force_iterations) || zero_std_dev <= calibration_precision) { // end iterations
@@ -661,6 +685,9 @@ void GcodeSuite::G33() {
   ac_cleanup(TERN_(HAS_MULTI_HOTEND, old_tool_index));
 
   TERN_(FULL_REPORT_TO_HOST_FEATURE, set_and_report_grblstate(M_IDLE));
+  #if HAS_DELTA_SENSORLESS_PROBING
+    probe.test_sensitivity = { true, true, true };
+  #endif
 }
 
 #endif // DELTA_AUTO_CALIBRATION
