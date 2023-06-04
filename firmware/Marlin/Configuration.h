@@ -126,7 +126,7 @@
 //#define BLUETOOTH
 
 // Name displayed in the LCD "Ready" message and Info menu
-#define CUSTOM_MACHINE_NAME "FrankenMaker v1.0"
+#define CUSTOM_MACHINE_NAME "FrankenMaker v1.1"
 
 // Printer's unique ID, used by some programs to differentiate between machines.
 // Choose your own or use a service like https://www.uuidgenerator.net/version4
@@ -1770,10 +1770,10 @@
 
 // Travel limits (linear=mm, rotational=°) after homing, corresponding to endstop positions.
 #define X_MIN_POS 0
-#define Y_MIN_POS 60
+#define Y_MIN_POS -33
 #define Z_MIN_POS 0
 #define X_MAX_POS 200
-#define Y_MAX_POS 240
+#define Y_MAX_POS 147
 #define Z_MAX_POS 150
 //#define I_MIN_POS 0
 //#define I_MAX_POS 50
